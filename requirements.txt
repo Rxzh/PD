@@ -1,0 +1,7 @@
+pandas
+matplotlib
+time
+numpy
+scipy
+datetime
+dateutil
