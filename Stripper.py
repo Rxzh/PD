@@ -11,16 +11,19 @@ from dateutil.relativedelta import relativedelta
 
 import argparse
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--data", help="Choose market data",)
-parser.add_argument("--start",    default='2020-12-31', help="Start date    | format : 'yyyy-mm-dd")
-parser.add_argument("--maturity", default='2071-01-05', help="Maturity date | format : 'yyyy-mm-dd")
-parser.add_argument("--price", default=1.04, help="Price",type=float)
-parser.add_argument("--frequence", default=3,help="Frequence (en mois)",type=int)
-parser.add_argument("--taux", default = 4/100, help="Taux fixe",type=float)
-parser.add_argument("--plotting",action="store_true", help="Plot or not")
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data", help="Choose market data",)
+    parser.add_argument("--start",    default='2020-12-31', help="Start date    | format : 'yyyy-mm-dd")
+    parser.add_argument("--maturity", default='2071-01-05', help="Maturity date | format : 'yyyy-mm-dd")
+    parser.add_argument("--price", default=1.04, help="Price",type=float)
+    parser.add_argument("--frequence", default=3,help="Frequence (en mois)",type=int)
+    parser.add_argument("--taux", default = 4/100, help="Taux fixe",type=float)
+    parser.add_argument("--plotting",action="store_true", help="Plot or not")
 
-args = parser.parse_args()
+    args = parser.parse_args()
+
+    return args
 
 def get_month(x):
     return x.month
@@ -147,11 +150,21 @@ class Stripper():
 
 
 if __name__ == '__main__':
-    stripper = Stripper(args.data, args.start, args.maturity, args.price, args.frequence, args.taux)
 
+    print("=========================")
     t1 = time.time()
+    args = main()
+    print("Argument parsing time = {}s".format(round(time.time()-t1,3)))
+
+    print("=========================")
+    t2 = time.time()
+    stripper = Stripper(args.data, args.start, args.maturity, args.price, args.frequence, args.taux)
+    print("Initialisation time = {}s".format(round(time.time()-t2,3)))
+
+    print("=========================")
+    t3 = time.time()
     stripper.get_PS()
-    print("Execution time = {}s".format(round(time.time()-t1,3)))
+    print("Stripping time = {}s".format(round(time.time()-t3,3)))
 
 
     stripper.df[['Maturity','PD']].to_csv('PD.csv')
