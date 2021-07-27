@@ -76,7 +76,7 @@ class Stripper():
         ### Creation DataFrame
         self.delta = 1/365
         self.BC = np.array([day * self.delta for day in (self.total_days)])
-        self.df = pd.DataFrame({'Date':self.total_dates,'Days':self.total_days,'DF':self.DF,'BC':self.BC})
+        self.df = pd.DataFrame({'Maturity':self.total_dates,'Days':self.total_days,'DF':self.DF,'BC':self.BC})
         
         self.CF = list(K * self.df['DF'] * self.df['BC'])
         self.CF[-1] += 1
@@ -157,8 +157,8 @@ if __name__ == '__main__':
     stripper.df[['Maturity','PD']].to_csv('PD.csv')
 
     if args.plotting:
-        plt.plot(stripper.df['Date'],stripper.df['PD'])
-        plt.xlabel('Date')
+        plt.plot(stripper.df['Maturity'],stripper.df['PD'])
+        plt.xlabel('Maturity Date')
         plt.ylabel('PD')
         plt.title('PD(T)')
         plt.show()
