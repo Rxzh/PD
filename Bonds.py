@@ -41,60 +41,35 @@ def log_interp1d(xx, yy, kind='linear'):
 
 
 
-class Stripper():
-    def __init__(self, data, start='2020-12-31', end='2071-01-05', price= 1.04, freq = 3, K = 4/100): #yyyy-mm-dd
+class Bond():
+    def __init__(self, start='2020-12-31', end='2071-01-05', price= 1.04, freq = 3, K = 4/100): #yyyy-mm-dd
         
-        if type(data) == str:
-            self.data = pd.read_excel(data)
-        else:
-            self.data = data
+
             
         self.price = price
         self.freq = freq
         self.K = K
     
         self.start = datetime.strptime(start,'%Y-%m-%d')
-        self.end = datetime.strptime(end,'%Y-%m-%d')
-        
-        self.total_dates = [datetime.strptime(self.data['Payment Date'][0],'%m/%d/%Y')]
-        
-        while self.total_dates[-1] < self.end:
-            self.total_dates.append(self.total_dates[-1] + relativedelta(months=+freq))
-            
-        while self.total_dates[-1] != self.end:
-            self.total_dates[-1] -= timedelta(days=1)
-            
-        self.total_days = [(date-self.start).days for date in self.total_dates]
-        
-        ### Interpolation
-        
-        data_t  = [(datetime.strptime(date,'%m/%d/%Y') - self.start).days for date in self.data['Payment Date']]
-        data_df = self.data['Discount']
-        
-        
-        self.DF = np.vectorize(log_interp1d(data_t, data_df))(self.total_days)
-        #self.PRICES = np.vectorize(log_interp1d(data_t, data_price))(self.total_days)
-        
-        
-        ### Creation DataFrame
-        self.delta = 1/365
-        self.BC = np.array([day * self.delta for day in (self.total_days)])
-        self.df = pd.DataFrame({'Maturity':self.total_dates,'Days':self.total_days,'DF':self.DF,'BC':self.BC})
-        
-        self.CF = list(K * self.df['DF'] * self.df['BC'])
-        self.CF[-1] += 1
-        
-        self.df['CF'] = self.CF
-        
-        
-        ### 
+        try:
+            self.end = datetime.strptime(end,'%Y-%m-%d')
+        except:
+            if type(end) is not str:
+                self.end = end
+            else:
+                self.end = datetime.strptime(end,'%m/%d/%Y')
+
+
         
 
+
+        
+        
     def F(self,S,T):
         return (self.DF[S]/self.DF[T]-1) / (self.freq*self.delta)
 
     
-    
+
     def polynome(self, p,LGD=.6):
 
         n = len(self.DF)
@@ -148,6 +123,52 @@ class Stripper():
         self.get_PS()
 
 
+    def stripping(self, data):
+
+        if type(data) == str:
+            self.data = pd.read_excel(data)
+        else:
+            self.data = data
+        
+
+
+        
+        self.total_dates = [datetime.strptime(self.data['Payment Date'][0],'%m/%d/%Y')]
+        
+        while self.total_dates[-1] < self.end:
+            self.total_dates.append(self.total_dates[-1] + relativedelta(months=+self.freq))
+            
+        while self.total_dates[-1] != self.end: #TODO change that
+            self.total_dates[-1] -= timedelta(days=1)
+            
+        self.total_days = [(date-self.start).days for date in self.total_dates]
+        
+
+
+        data_t  = [(datetime.strptime(date,'%m/%d/%Y') - self.start).days for date in self.data['Payment Date']]
+        data_df = self.data['Discount']
+    
+        self.DF = np.vectorize(log_interp1d(data_t, data_df))(self.total_days)
+
+
+
+        self.delta = 1/365
+        self.BC = np.array([day * self.delta for day in (self.total_days)])
+        self.df = pd.DataFrame({'Maturity':self.total_dates,'Days':self.total_days,'DF':self.DF,'BC':self.BC})
+        
+        self.CF = list(self.K * self.df['DF'] * self.df['BC'])
+        self.CF[-1] += 1
+        
+        self.df['CF'] = self.CF
+
+
+        return 1 - self.get_PS_1year()
+
+        
+
+
+
+
 
 if __name__ == '__main__':
 
@@ -158,7 +179,7 @@ if __name__ == '__main__':
 
     print("=========================")
     t2 = time.time()
-    stripper = Stripper(args.data, args.start, args.maturity, args.price, args.frequence, args.taux)
+    stripper = Bond(args.data, args.start, args.maturity, args.price, args.frequence, args.taux)
     print("Initialisation time = {}s".format(round(time.time()-t2,3)))
 
     print("=========================")
