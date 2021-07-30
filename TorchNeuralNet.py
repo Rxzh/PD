@@ -7,8 +7,8 @@ import torch.nn.functional as F
 
 
 
-params = {'n_features':10,
-        'n_hidden':100,
+params = {'n_features':3,
+        'n_hidden':7,
         'n_output' :1,
         'optimizer':'SGD',
         'loss_func':'MSE'}
@@ -42,7 +42,7 @@ class Model:
 
 
 
-    def fit(self,x ,y, n_epochs = 20, n_steps = 200):
+    def fit(self,x ,y, n_epochs = 9, n_steps = 15):
 
         for epoch in range(n_epochs):
             running_loss = 0.0
@@ -62,6 +62,11 @@ class Model:
                 running_loss += loss.item()
                 print('[%d, %5d] loss: %.3f' %
                     (epoch + 1, step + 1, running_loss))
+
+                print("=========================")
+                print(self.eval())
+
+                
                 running_loss = 0.0
 
     def predict(self, x):
