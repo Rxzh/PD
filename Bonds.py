@@ -5,6 +5,7 @@ import time
 import numpy as np
 import scipy as sp
 import scipy.interpolate
+from scipy.optimize import minimize
 
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
@@ -17,7 +18,6 @@ def main():
     parser.add_argument("--start",    default='2020-12-31', help="Start date    | format : 'yyyy-mm-dd")
     parser.add_argument("--maturity", default='2071-01-05', help="Maturity date | format : 'yyyy-mm-dd")
     parser.add_argument("--price", default=1.04, help="Price",type=float)
-    parser.add_argument("--frequence", default=3,help="Frequence (en mois)",type=int)
     parser.add_argument("--taux", default = 4/100, help="Taux fixe",type=float)
     parser.add_argument("--plotting",action="store_true", help="Plot or not")
 
@@ -39,16 +39,25 @@ def log_interp1d(xx, yy, kind='linear'):
     log_interp = lambda zz: np.power(10.0, lin_interp(np.log10(zz)))
     return log_interp
 
+def log_interp1d_neg(xx, yy, kind='linear'):
+
+    logx = np.log10(xx)
+    logy = np.log10(yy)
+    lin_interp = sp.interpolate.interp1d(logx, logy, kind=kind)
+    log_interp = lambda zz: -np.power(10.0, lin_interp(np.log10(zz)))
+    return log_interp
+
 
 
 class Bond():
-    def __init__(self, start='2020-12-31', end='2071-01-05', price= 1.04, freq = 3, K = 4/100): #yyyy-mm-dd
+    def __init__(self, start='2020-12-31', end='2071-01-05', price= 1.04, K = 4/100,coupon=10,discount_rate_func=None): #yyyy-mm-dd
         
-
-            
+        self.coupon = coupon
         self.price = price
-        self.freq = freq
         self.K = K
+        self.LGD = .6
+        self.recovery_rate = 1 - self.LGD
+        self.principal_payment = 100
     
         self.start = datetime.strptime(start,'%Y-%m-%d')
         try:
@@ -58,69 +67,72 @@ class Bond():
                 self.end = end
             else:
                 self.end = datetime.strptime(end,'%m/%d/%Y')
-
-
         
+        self.maturity_years = (self.end - self.start).days / 365
 
 
-        
-        
-    def F(self,S,T):
-        return (self.DF[S]/self.DF[T]-1) / (self.freq*self.delta)
+
+        # DiscountRate 
+        """
+        z = 365/np.array(data_t)*np.log(data_df)
+        print("===================================")
+        print(z)
+        print("==================================")
+        discount_rate_func = log_interp1d_neg(np.array(data_t)/365, z,)
+        self.risk_adjusted_discount_rate = discount_rate_func(self.maturity_years)
+
+        import time
+        time.sleep(10)
+        """
+
+        self.risk_adjusted_discount_rate = discount_rate_func(self.maturity_years)
 
     
 
-    def polynome(self, p,LGD=.6):
+    def polynome(self,P):
+        #Need = self.times and self.cashflow, self.principal_payment, self.risk_adjusted_discount_rate, self.recovery_rate
+            x_prob_default_exp = 0
+            for i in range(len(self.times)):
 
-        n = len(self.DF)
-        zero_target = self.DF[n-1]*p**self.BC[n-1] 
-        
-        for i in range(len(self.DF)):
-            zero_target += self.DF[i]* \
-                            (
-                            p**self.BC[i] * self.F(i-1,i) * self.delta + \
-                            (p**self.BC[i-1] - p**self.BC[i] )*(1-LGD)
-                            )
+                #if there is only one payment remaining
+                if len(self.times) == 1:
+                    x_prob_default_exp += ((self.cashflows[i]*(1-P) + self.cashflows[i]*self.recovery_rate*P) / \
+                                        np.power((1 + self.risk_adjusted_discount_rate), self.times[i]))
+
+                #if there are multiple payments remaining
+                else:
+
+                    if self.times[i] == 1:
+                        x_prob_default_exp += ((self.cashflows[i]*(1-P) + self.principal_payment*self.recovery_rate*P) / \
+                                                np.power((1 + self.risk_adjusted_discount_rate), self.times[i]))
+
+
+                    else:
+                        x_prob_default_exp += (np.power((1-P), self.times[i-1])*(self.cashflows[i]*(1-P) + self.principal_payment*self.recovery_rate*P)) / \
+                                            np.power((1 + self.risk_adjusted_discount_rate), self.times[i])
             
-            
-        zero_target += self.DF[n-1] * p**self.BC[n-1]
-        zero_target -= self.price
-        
-        return zero_target
+            return (x_prob_default_exp - self.price)**2
 
     
-    
-    def solve_polynome(self, epsilon = 1e-8):
+    def probability_of_default(self):
 
-        left = 0
-        right= 1
+        self.times = np.arange(1, self.maturity_years+1) 
+        self.annual_coupon = self.coupon 
 
-        while right-left>epsilon :
+        
+        
+        # Calculation of Expected Cash Flow
+        self.cashflows = np.array([])
 
-            mid = (left+right) / 2
-            if (self.polynome(left))*(self.polynome(mid)) < 0:
-                right = mid
-            else:
-                left = mid
+        for _ in self.times[:-1]:
+                self.cashflows = np.append(self.cashflows, self.annual_coupon)
+        self.cashflows = np.append(self.cashflows, self.annual_coupon+self.principal_payment)
 
-        return left
+        implied_prob_default = minimize(self.polynome, x0=np.array([.5]))
+        return max(0.0,min(implied_prob_default.x,1.0))
+
+
     
-    
-    def get_PS_1year(self):
-        self.p = self.solve_polynome()
-        return self.p
-    
-    def get_PS(self):
-        
-        self.PS_1year = self.get_PS_1year()
-        
-        self.PS = [self.PS_1year**delta for delta in self.BC]
-        
-        self.df['PS'] = self.PS
-        self.df['PD'] = 1 - self.df['PS']
-        
-    def get_PD(self):
-        self.get_PS()
 
 
     def stripping(self, data):
@@ -130,18 +142,17 @@ class Bond():
         else:
             self.data = data
         
-
-
         
         self.total_dates = [datetime.strptime(self.data['Payment Date'][0],'%m/%d/%Y')]
         
         while self.total_dates[-1] < self.end:
-            self.total_dates.append(self.total_dates[-1] + relativedelta(months=+self.freq))
+            self.total_dates.append(self.total_dates[-1] + relativedelta(years=+1))
             
         while self.total_dates[-1] != self.end: #TODO change that
             self.total_dates[-1] -= timedelta(days=1)
             
         self.total_days = [(date-self.start).days for date in self.total_dates]
+        self.total_years = np.array(self.total_days)/365
         
 
 
@@ -152,17 +163,16 @@ class Bond():
 
 
 
+
+
+
         self.delta = 1/365
-        self.BC = np.array([day * self.delta for day in (self.total_days)])
-        self.df = pd.DataFrame({'Maturity':self.total_dates,'Days':self.total_days,'DF':self.DF,'BC':self.BC})
-        
-        self.CF = list(self.K * self.df['DF'] * self.df['BC'])
-        self.CF[-1] += 1
-        
-        self.df['CF'] = self.CF
-
-
-        return 1 - self.get_PS_1year()
+ 
+        self.df = pd.DataFrame({'Maturity':self.total_dates,'Days':self.total_days,'DF':self.DF})
+    
+        PD = self.probability_of_default()
+  
+        return PD
 
         
 
@@ -179,7 +189,7 @@ if __name__ == '__main__':
 
     print("=========================")
     t2 = time.time()
-    stripper = Bond(args.data, args.start, args.maturity, args.price, args.frequence, args.taux)
+    stripper = Bond(args.data, args.start, args.maturity, args.price, args.taux)
     print("Initialisation time = {}s".format(round(time.time()-t2,3)))
 
     print("=========================")
