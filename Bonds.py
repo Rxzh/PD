@@ -50,7 +50,7 @@ def log_interp1d_neg(xx, yy, kind='linear'):
 
 
 class Bond():
-    def __init__(self, start='2020-12-31', end='2071-01-05', price= 1.04, K = 4/100,coupon=10,discount_rate_func=None): #yyyy-mm-dd
+    def __init__(self, start='2020-12-31', end='2071-01-05', price= 1.04, K = 4/100,coupon=10): #yyyy-mm-dd
         
         self.coupon = coupon
         self.price = price
@@ -71,22 +71,6 @@ class Bond():
         self.maturity_years = (self.end - self.start).days / 365
 
 
-
-        # DiscountRate 
-        """
-        z = 365/np.array(data_t)*np.log(data_df)
-        print("===================================")
-        print(z)
-        print("==================================")
-        discount_rate_func = log_interp1d_neg(np.array(data_t)/365, z,)
-        self.risk_adjusted_discount_rate = discount_rate_func(self.maturity_years)
-
-        import time
-        time.sleep(10)
-        """
-
-        self.risk_adjusted_discount_rate = discount_rate_func(self.maturity_years)
-
     
 
     def polynome(self,P):
@@ -96,20 +80,23 @@ class Bond():
 
                 #if there is only one payment remaining
                 if len(self.times) == 1:
-                    x_prob_default_exp += ((self.cashflows[i]*(1-P) + self.cashflows[i]*self.recovery_rate*P) / \
-                                        np.power((1 + self.risk_adjusted_discount_rate), self.times[i]))
+                    x_prob_default_exp += ((self.cashflows[i]*(1-P) + self.cashflows[i]*self.recovery_rate*P) \
+                                        #/ np.power((1 + self.risk_adjusted_discount_rate), self.times[i]))
+                                        * self.DF[i]) # ou self.DF[self.times[i]]
 
                 #if there are multiple payments remaining
                 else:
 
                     if self.times[i] == 1:
-                        x_prob_default_exp += ((self.cashflows[i]*(1-P) + self.principal_payment*self.recovery_rate*P) / \
-                                                np.power((1 + self.risk_adjusted_discount_rate), self.times[i]))
+                        x_prob_default_exp += ((self.cashflows[i]*(1-P) + self.principal_payment*self.recovery_rate*P) \
+                                                #/np.power((1 + self.risk_adjusted_discount_rate), self.times[i]))
+                                                * self.DF[i]) # ou self.DF[self.times[i]]
 
 
                     else:
-                        x_prob_default_exp += (np.power((1-P), self.times[i-1])*(self.cashflows[i]*(1-P) + self.principal_payment*self.recovery_rate*P)) / \
-                                            np.power((1 + self.risk_adjusted_discount_rate), self.times[i])
+                        x_prob_default_exp += ((np.power((1-P), self.times[i-1])*(self.cashflows[i]*(1-P) + self.principal_payment*self.recovery_rate*P)) \
+                                                #/ np.power((1 + self.risk_adjusted_discount_rate), self.times[i])
+                                                * self.DF[i])
             
             return (x_prob_default_exp - self.price)**2
 
@@ -117,9 +104,7 @@ class Bond():
     def probability_of_default(self):
 
         self.times = np.arange(1, self.maturity_years+1) 
-        self.annual_coupon = self.coupon 
-
-        
+        self.annual_coupon = self.coupon        
         
         # Calculation of Expected Cash Flow
         self.cashflows = np.array([])
@@ -128,9 +113,11 @@ class Bond():
                 self.cashflows = np.append(self.cashflows, self.annual_coupon)
         self.cashflows = np.append(self.cashflows, self.annual_coupon+self.principal_payment)
 
-        implied_prob_default = minimize(self.polynome, x0=np.array([.5]))
-        return max(0.0,min(implied_prob_default.x,1.0))
+        implied_prob_default = minimize(self.polynome, x0=np.array([.5]),method='Powell')
 
+        pd = max(0.0,min(implied_prob_default.x,1.0))
+
+        return pd
 
     
 
@@ -162,19 +149,66 @@ class Bond():
         self.DF = np.vectorize(log_interp1d(data_t, data_df))(self.total_days)
 
 
-
-
-
-
         self.delta = 1/365
  
         self.df = pd.DataFrame({'Maturity':self.total_dates,'Days':self.total_days,'DF':self.DF})
     
-        PD = self.probability_of_default()
+        self.PD_1y = self.probability_of_default()
   
-        return PD
+        return self.PD_1y
+
+    
+    def reprice(self):
+        price = 0.0
+        for i in range(len(self.times)):
+
+            #if there is only one payment remaining
+            if len(self.times) == 1:
+                price += ((self.cashflows[i]*(1-self.PD_1y) + self.cashflows[i]*self.recovery_rate*self.PD_1y) \
+                            #/ np.power((1 + self.risk_adjusted_discount_rate), self.times[i]))
+                            * self.DF[i]) # ou self.DF[self.times[i]]
+
+            #if there are multiple payments remaining
+            else:
+
+                if self.times[i] == 1:
+                    price += ((self.cashflows[i]*(1-self.PD_1y) + self.principal_payment*self.recovery_rate*self.PD_1y) \
+                                            #/np.power((1 + self.risk_adjusted_discount_rate), self.times[i]))
+                                            * self.DF[i]) # ou self.DF[self.times[i]]
+
+
+                else:
+                    price += ((np.power((1-self.PD_1y), self.times[i-1])*(self.cashflows[i]*(1-self.PD_1y) + self.principal_payment*self.recovery_rate*self.PD_1y)) \
+                                            #/ np.power((1 + self.risk_adjusted_discount_rate), self.times[i])
+                                            * self.DF[i])
+        
+        return price
 
         
+
+
+
+
+
+        """
+        price = 0.0
+        n_remaining_payments = int(self.maturity_years) + 1
+        for i in range(n_remaining_payments):
+
+            ajout = self.PD_1y*(1-self.LGD) + (1-self.PD_1y) * self.annual_coupon/100
+            ajout *= (1-self.PD_1y)**i
+            ajout *= list(self.df['DF'])[i]
+
+            price += ajout
+        """
+
+        #verifier que les coupons soient actualisés
+        #actualiser le +100
+
+        return 100*(price +(list(self.df['DF'])[-1] ))
+
+
+
 
 
 
