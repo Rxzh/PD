@@ -6,42 +6,21 @@ import argparse
 import scipy as sp
 from datetime import datetime
 
-def log_interp1d_neg(xx, yy, kind='linear'):
-
-    logx = np.log10(xx)
-    logy = np.log10(yy)
-    lin_interp = sp.interpolate.interp1d(logx, logy, kind=kind)
-    log_interp = lambda zz: -np.power(10.0, lin_interp(np.log10(zz)))
-    return log_interp
-
-
-def generate_discount_rate_func(start):
-    d_factor = pd.read_excel("DF(t) .xlsx")
-    d_factor.columns=['date','df']
-
-    def foo(x):
-        return ((x-datetime.strptime(start,'%Y-%m-%d')).days)/365
-
-    d_factor['date'] = d_factor['date'].apply(foo)
-
-    z = 1/d_factor['date']*np.log(d_factor['df'])
-
-
-    discount_rate_func = log_interp1d_neg(d_factor['date'], z,)
-    return discount_rate_func
+import matplotlib.pyplot as plt
 
 
 
-def pipeline(end, price,K,coupon,discount_rate_func, start='2021-07-29'):
-    try:
-        bond = Bond(start, end, price, K,coupon,discount_rate_func)
-        return bond.stripping("Bloom_OIS_29072021.xlsx")
-    except:
-        return np.nan
+def pipeline(end, price,K,coupon, start='2021-07-29'):
+
+    bond = Bond(start, end, price, K,coupon)
+    pd = bond.stripping("Bloom_OIS_29072021.xlsx")
+    reprice = bond.reprice()
+
+    return pd, price, reprice
+
+
 
 def main(file_name):
-
-    discount_rate_func = generate_discount_rate_func(start='2021-07-29')
 
     #df = pd.read_excel(file_name)
     df = pd.read_csv(file_name)
@@ -51,7 +30,7 @@ def main(file_name):
     df = df.iloc[: , 1:]
     df['Mid Price'].replace(',','',inplace=True)
     mid_prices = []
-    DR_func = []
+
 
     for x in df['Mid Price']:
         if type(x) == str:
@@ -59,19 +38,20 @@ def main(file_name):
         else:
             mid_prices.append(x)
 
-        DR_func.append(discount_rate_func)
+
 
     df['Mid Price'] = mid_prices
 
-    df['PD_1y'] = np.vectorize(pipeline)(end=df['Maturity'],
+    df['PD_1y'],_,df['reprice'] = np.vectorize(pipeline)(end=df['Maturity'],
                                          price=df['Mid Price'].astype(float),
                                          K=df['Cpn'].astype(float)/100, 
-                                         coupon=df['Cpn'], 
-                                         discount_rate_func=DR_func)
+                                         coupon=df['Cpn'])
 
     
+    df['Error %'] = 100*np.abs((df['Mid Price'] - df['reprice'])/df['Mid Price'])
  
     df['PD_1y'].to_csv('PD_1y.csv')
+
 
     df.to_csv('market_data_pd.csv')
 
