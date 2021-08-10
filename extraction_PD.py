@@ -12,11 +12,15 @@ import matplotlib.pyplot as plt
 
 def pipeline(end, price,K,coupon, start='2021-07-29'):
 
-    bond = Bond(start, end, price, K,coupon)
-    pd = bond.stripping("Bloom_OIS_29072021.xlsx")
-    reprice = bond.reprice()
+    try:
+        bond = Bond(start, end, price, K,coupon)
+        pd = bond.stripping("Bloom_OIS_29072021.xlsx")
+        reprice = bond.reprice()
 
-    return pd, price, reprice
+        return pd, price, reprice
+    except: 
+        return -1,-1,-1
+
 
 
 
