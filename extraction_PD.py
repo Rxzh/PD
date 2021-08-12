@@ -10,12 +10,15 @@ import matplotlib.pyplot as plt
 
 
 
-def pipeline(end, price,K,coupon, start='2021-07-29'):
+def pipeline(end, price,K,coupon, start='2021-08-11'):
+
 
     try:
         bond = Bond(start, end, price, K,coupon)
         pd = bond.stripping("Bloom_OIS_29072021.xlsx")
         reprice = bond.reprice()
+
+
 
         return pd, price, reprice
     except: 
@@ -27,7 +30,7 @@ def pipeline(end, price,K,coupon, start='2021-07-29'):
 def main(file_name):
 
     #df = pd.read_excel(file_name)
-    df = pd.read_csv(file_name)
+    df = pd.read_csv(file_name, sep=';')
 
     df = df[df['Maturity'].notna()]
 

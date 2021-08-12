@@ -76,6 +76,7 @@ class Bond():
     def polynome(self,P):
         #Need = self.times and self.cashflow, self.principal_payment, self.risk_adjusted_discount_rate, self.recovery_rate
             x_prob_default_exp = 0
+
             for i in range(len(self.times)):
 
                 #if there is only one payment remaining
@@ -98,12 +99,14 @@ class Bond():
                                                 #/ np.power((1 + self.risk_adjusted_discount_rate), self.times[i])
                                                 * self.DF[i])
             
+
             return (x_prob_default_exp - self.price)**2
 
     
     def probability_of_default(self):
 
         self.times = np.arange(1, self.maturity_years+1) 
+        
         self.annual_coupon = self.coupon        
         
         # Calculation of Expected Cash Flow
@@ -112,6 +115,7 @@ class Bond():
         for _ in self.times[:-1]:
                 self.cashflows = np.append(self.cashflows, self.annual_coupon)
         self.cashflows = np.append(self.cashflows, self.annual_coupon+self.principal_payment)
+        
 
         implied_prob_default = minimize(self.polynome, x0=np.array([.5]),method='Powell')
 
@@ -167,6 +171,8 @@ class Bond():
                 price += ((self.cashflows[i]*(1-self.PD_1y) + self.cashflows[i]*self.recovery_rate*self.PD_1y) \
                             #/ np.power((1 + self.risk_adjusted_discount_rate), self.times[i]))
                             * self.DF[i]) # ou self.DF[self.times[i]]
+
+                
 
             #if there are multiple payments remaining
             else:
