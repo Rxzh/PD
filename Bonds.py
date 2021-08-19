@@ -162,13 +162,17 @@ class Bond():
         return self.PD_1y
 
     
-    def reprice(self):
+    def reprice(self, PD_1y = None):
+
+        if PD_1y is None:
+            PD_1y = self.PD_1y
+
         price = 0.0
         for i in range(len(self.times)):
 
             #if there is only one payment remaining
             if len(self.times) == 1:
-                price += ((self.cashflows[i]*(1-self.PD_1y) + self.cashflows[i]*self.recovery_rate*self.PD_1y) \
+                price += ((self.cashflows[i]*(1-PD_1y) + self.cashflows[i]*self.recovery_rate*PD_1y) \
                             #/ np.power((1 + self.risk_adjusted_discount_rate), self.times[i]))
                             * self.DF[i]) # ou self.DF[self.times[i]]
 
@@ -178,13 +182,13 @@ class Bond():
             else:
 
                 if self.times[i] == 1:
-                    price += ((self.cashflows[i]*(1-self.PD_1y) + self.principal_payment*self.recovery_rate*self.PD_1y) \
+                    price += ((self.cashflows[i]*(1-PD_1y) + self.principal_payment*self.recovery_rate*PD_1y) \
                                             #/np.power((1 + self.risk_adjusted_discount_rate), self.times[i]))
                                             * self.DF[i]) # ou self.DF[self.times[i]]
 
 
                 else:
-                    price += ((np.power((1-self.PD_1y), self.times[i-1])*(self.cashflows[i]*(1-self.PD_1y) + self.principal_payment*self.recovery_rate*self.PD_1y)) \
+                    price += ((np.power((1-PD_1y), self.times[i-1])*(self.cashflows[i]*(1-PD_1y) + self.principal_payment*self.recovery_rate*PD_1y)) \
                                             #/ np.power((1 + self.risk_adjusted_discount_rate), self.times[i])
                                             * self.DF[i])
         
