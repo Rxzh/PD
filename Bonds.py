@@ -50,6 +50,7 @@ def log_interp1d_neg(xx, yy, kind='linear'):
 
 
 class Bond():
+
     def __init__(self, start='2020-12-31', end='2071-01-05', price= 1.04, K = 4/100,coupon=10): #yyyy-mm-dd
         
         self.coupon = coupon
@@ -168,28 +169,22 @@ class Bond():
             PD_1y = self.PD_1y
 
         price = 0.0
+        
         for i in range(len(self.times)):
 
-            #if there is only one payment remaining
+            #Si il ne reste qu'un seul paiement
             if len(self.times) == 1:
                 price += ((self.cashflows[i]*(1-PD_1y) + self.cashflows[i]*self.recovery_rate*PD_1y) \
-                            #/ np.power((1 + self.risk_adjusted_discount_rate), self.times[i]))
-                            * self.DF[i]) # ou self.DF[self.times[i]]
+                            * self.DF[i]) 
 
-                
 
-            #if there are multiple payments remaining
+            #Si il reste plusieurs paiements
             else:
-
                 if self.times[i] == 1:
                     price += ((self.cashflows[i]*(1-PD_1y) + self.principal_payment*self.recovery_rate*PD_1y) \
-                                            #/np.power((1 + self.risk_adjusted_discount_rate), self.times[i]))
-                                            * self.DF[i]) # ou self.DF[self.times[i]]
-
-
+                                            * self.DF[i]) 
                 else:
                     price += ((np.power((1-PD_1y), self.times[i-1])*(self.cashflows[i]*(1-PD_1y) + self.principal_payment*self.recovery_rate*PD_1y)) \
-                                            #/ np.power((1 + self.risk_adjusted_discount_rate), self.times[i])
                                             * self.DF[i])
         
         return price
